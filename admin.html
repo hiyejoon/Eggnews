@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>뉴스 관리자 페이지</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    input, textarea { width: 100%; margin-bottom: 10px; padding: 8px; box-sizing: border-box; }
+    button { padding: 10px 15px; background: #000; color: #fff; border: none; cursor: pointer; margin-right: 5px; }
+    .article-item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .article-item h4 { margin: 0; font-size: 1em; }
+    .edit-btn { background: #0056b3; padding: 5px 10px; font-size: 0.9em; }
+    .delete-btn { background: #dc3545; padding: 5px 10px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <h1>뉴스 관리자</h1>
+  
+  <div id="login-section">
+    <input type="email" id="email" placeholder="이메일 (hl105sk@proton.me)">
+    <input type="password" id="password" placeholder="비밀번호">
+    <button id="login-btn">로그인</button>
+  </div>
+
+  <div id="admin-panel" style="display: none;">
+    <div id="editor-section">
+      <h3 id="editor-header">새 기사 작성</h3>
+      <input type="text" id="title" placeholder="기사 제목">
+      <input type="text" id="imgur-url" placeholder="Imgur 이미지 링크 (예: https://i.imgur.com/abc.jpg)">
+      <textarea id="content" placeholder="기사 본문" rows="10"></textarea>
+      <button id="submit-btn">기사 발행</button>
+      <button id="cancel-btn" style="display: none; background: #666;">수정 취소</button>
+    </div>
+
+    <hr style="margin: 30px 0;">
+
+    <div id="list-section">
+      <h3>기사 목록 (수정 / 삭제)</h3>
+      <div id="article-list">목록을 불러오는 중...</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCK1y6RMGJmN0i0dVMy7X2J5Jazgar7JZU",
+      authDomain: "betear-3915d.firebaseapp.com",
+      projectId: "betear-3915d",
+      storageBucket: "betear-3915d.firebasestorage.app",
+      messagingSenderId: "368724311154",
+      appId: "1:368724311154:web:0944de10642e55d6b0d6eb",
+      measurementId: "G-FT8N73JT4V"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let editingId = null; 
+    let articlesData = {}; 
+
+    // 로그인 상태 확인
+    onAuthStateChanged(auth, (user) => {
+      if (user && user.email === "hl105sk@proton.me") {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('admin-panel').style.display = 'block';
+        loadArticles(); 
+      }
+    });
+
+    document.getElementById('login-btn').addEventListener('click', () => {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      signInWithEmailAndPassword(auth, email, password)
+        .then(() => alert("로그인 성공!"))
+        .catch((error) => alert("로그인 실패: " + error.message));
+    });
+
+    // 기사 목록 불러오기
+    async function loadArticles() {
+      const listEl = document.getElementById('article-list');
+      listEl.innerHTML = '로딩 중...';
+      
+      const q = query(collection(db, "articles"), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      
+      listEl.innerHTML = '';
+      articlesData = {};
+
+      if (snapshot.empty) {
+        listEl.innerHTML = '<p>등록된 기사가 없습니다.</p>';
+        return;
+      }
+
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        articlesData[docSnap.id] = data; 
+
+        const div = document.createElement('div');
+        div.className = 'article-item';
+        div.innerHTML = `
+          <h4>${data.title}</h4>
+          <div>
+            <button class="edit-btn" data-id="${docSnap.id}">수정</button>
+            <button class="delete-btn" data-id="${docSnap.id}">삭제</button>
+          </div>
+        `;
+        listEl.appendChild(div);
+      });
+
+      // 수정 버튼 이벤트
+      document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.target.getAttribute('data-id');
+          const data = articlesData[id];
+          
+          editingId = id;
+          document.getElementById('title').value = data.title;
+          document.getElementById('imgur-url').value = data.imgurUrl || '';
+          document.getElementById('content').value = data.content;
+          
+          document.getElementById('editor-header').innerText = "기사 수정";
+          document.getElementById('submit-btn').innerText = "수정 완료";
+          document.getElementById('cancel-btn').style.display = "inline-block";
+          
+          window.scrollTo(0, 0); 
+        });
+      });
+
+      // 삭제 버튼 이벤트
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.target.getAttribute('data-id');
+          if (confirm("정말 이 기사를 삭제하시겠습니까?")) {
+            try {
+              await deleteDoc(doc(db, "articles", id));
+              alert("기사가 삭제되었습니다.");
+              // 만약 현재 수정 중이던 기사를 삭제했다면 폼 초기화
+              if (editingId === id) resetForm();
+              loadArticles(); 
+            } catch (error) {
+              alert("삭제 중 오류가 발생했습니다: " + error.message);
+            }
+          }
+        });
+      });
+    }
+
+    // 폼 초기화 함수
+    function resetForm() {
+      editingId = null;
+      document.getElementById('title').value = '';
+      document.getElementById('imgur-url').value = '';
+      document.getElementById('content').value = '';
+      document.getElementById('editor-header').innerText = "새 기사 작성";
+      document.getElementById('submit-btn').innerText = "기사 발행";
+      document.getElementById('cancel-btn').style.display = "none";
+    }
+
+    document.getElementById('cancel-btn').addEventListener('click', resetForm);
+
+    // 기사 발행 및 수정 로직
+    document.getElementById('submit-btn').addEventListener('click', async () => {
+      const title = document.getElementById('title').value;
+      const imgurUrl = document.getElementById('imgur-url').value;
+      const content = document.getElementById('content').value;
+
+      if(!title || !content) return alert("제목과 내용을 입력하세요.");
+
+      try {
+        if (editingId) {
+          const docRef = doc(db, "articles", editingId);
+          await updateDoc(docRef, {
+            title: title,
+            imgurUrl: imgurUrl,
+            content: content,
+            updatedAt: serverTimestamp() 
+          });
+          alert("기사가 성공적으로 수정되었습니다!");
+        } else {
+          await addDoc(collection(db, "articles"), {
+            title: title,
+            imgurUrl: imgurUrl,
+            content: content,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          alert("기사가 성공적으로 발행되었습니다!");
+        }
+        
+        resetForm();
+        loadArticles(); 
+      } catch (e) {
+        alert("처리 중 에러: " + e.message);
+      }
+    });
+  </script>
+</body>
+</html>

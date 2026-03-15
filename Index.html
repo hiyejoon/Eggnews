@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer"> 
+  <meta property="og:title" id="og-title" content="최신 뉴스 사이트">
+  <meta property="og:description" id="og-desc" content="가장 빠른 소식을 전달합니다.">
+  <meta property="og:image" id="og-image" content="https://i.imgur.com/기본이미지.jpg">
+  <title>계란News</title>
+  <style>
+    body { font-family: 'Malgun Gothic', sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+    .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+    .header h1 { margin: 0; cursor: pointer; }
+    .article-item { border-bottom: 1px solid #ddd; padding: 15px 0; }
+    .article-item h2 { margin: 0 0 10px 0; font-size: 1.2em; }
+    .article-item a { text-decoration: none; color: #000; }
+    .article-item a:hover { text-decoration: underline; color: #0056b3; }
+    .meta { color: #888; font-size: 0.9em; margin-bottom: 15px; }
+    .article-img { max-width: 100%; height: auto; margin: 15px 0; display: block; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 onclick="location.href='index.html'">📰 오늘의 계란뉴스</h1>
+  </div>
+
+  <div id="content-area">
+    <p>뉴스를 불러오는 중입니다...</p>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCK1y6RMGJmN0i0dVMy7X2J5Jazgar7JZU",
+      authDomain: "betear-3915d.firebaseapp.com",
+      projectId: "betear-3915d",
+      storageBucket: "betear-3915d.firebasestorage.app",
+      messagingSenderId: "368724311154",
+      appId: "1:368724311154:web:0944de10642e55d6b0d6eb"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const contentArea = document.getElementById('content-area');
+
+    function formatDate(timestamp) {
+      if (!timestamp) return '';
+      const date = timestamp.toDate();
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const articleId = urlParams.get('id');
+
+    if (articleId) {
+      // 1. 단일 기사 본문 보기
+      const docRef = doc(db, "articles", articleId);
+      getDoc(docRef).then((docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const imgHtml = data.imgurUrl ? `<img src="${data.imgurUrl}" class="article-img" alt="기사 이미지">` : '';
+          
+          // [추가된 부분] 문서 타이틀 및 메타(OG) 태그 동적 변경
+          document.title = data.title + " - 계란News";
+          document.getElementById('og-title').setAttribute('content', data.title);
+          
+          // 본문 일부를 설명(description)으로 추출
+          const descSnippet = data.content ? data.content.substring(0, 80).replace(/\n/g, ' ') + '...' : "기사 본문을 확인하세요.";
+          document.getElementById('og-desc').setAttribute('content', descSnippet);
+          
+          if (data.imgurUrl) {
+            document.getElementById('og-image').setAttribute('content', data.imgurUrl);
+          }
+
+          contentArea.innerHTML = `
+            <h2>${data.title}</h2>
+            <div class="meta">입력: ${formatDate(data.createdAt)} | 수정: ${formatDate(data.updatedAt)}</div>
+            ${imgHtml}
+            <div style="white-space: pre-wrap;">${data.content}</div>
+          `;
+        } else {
+          contentArea.innerHTML = "<p>기사를 찾을 수 없습니다.</p>";
+        }
+      });
+    } else {
+      // 2. 기사 목록 보기
+      const q = query(collection(db, "articles"), orderBy("createdAt", "desc"));
+      getDocs(q).then((querySnapshot) => {
+        contentArea.innerHTML = '';
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          contentArea.innerHTML += `
+            <div class="article-item">
+              <h2><a href="?id=${docSnap.id}">${data.title}</a></h2>
+              <div class="meta">${formatDate(data.createdAt)}</div>
+            </div>
+          `;
+        });
+        if(querySnapshot.empty) contentArea.innerHTML = '<p>등록된 기사가 없습니다.</p>';
+      });
+    }
+  </script>
+</body>
+</html>
