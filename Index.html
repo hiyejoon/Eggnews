@@ -8,26 +8,106 @@
   <meta property="og:description" id="og-desc" content="가장 빠른 소식을 전달합니다.">
   <meta property="og:image" id="og-image" content="https://i.imgur.com/기본이미지.jpg">
   <title>계란News</title>
+  
   <style>
-    body { font-family: 'Malgun Gothic', sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-    .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-    .header h1 { margin: 0; cursor: pointer; }
-    .article-item { border-bottom: 1px solid #ddd; padding: 15px 0; }
+    /* 1. 색상 변수 정의 (라이트 모드) */
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #333333;
+      --header-border: #333333;
+      --link-color: #000000;
+      --link-hover: #0056b3;
+      --meta-color: #888888;
+      --item-border: #dddddd;
+    }
+
+    /* 2. 다크 모드 색상 정의 */
+    body.dark-mode {
+      --bg-color: #121212;
+      --text-color: #e0e0e0;
+      --header-border: #666666;
+      --link-color: #90caf9;
+      --link-hover: #64b5f6;
+      --meta-color: #aaaaaa;
+      --item-border: #333333;
+    }
+
+    body { 
+      font-family: 'Malgun Gothic', sans-serif; 
+      max-width: 800px; 
+      margin: 0 auto; 
+      padding: 20px; 
+      line-height: 1.6; 
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    .header { 
+      border-bottom: 2px solid var(--header-border); 
+      padding-bottom: 10px; 
+      margin-bottom: 20px; 
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 { margin: 0; cursor: pointer; font-size: 1.5em; }
+    
+    #theme-toggle {
+      background: none;
+      border: 1px solid var(--meta-color);
+      color: var(--text-color);
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+
+    .article-item { border-bottom: 1px solid var(--item-border); padding: 15px 0; }
     .article-item h2 { margin: 0 0 10px 0; font-size: 1.2em; }
-    .article-item a { text-decoration: none; color: #000; }
-    .article-item a:hover { text-decoration: underline; color: #0056b3; }
-    .meta { color: #888; font-size: 0.9em; margin-bottom: 15px; }
-    .article-img { max-width: 100%; height: auto; margin: 15px 0; display: block; }
+    .article-item a { text-decoration: none; color: var(--link-color); transition: color 0.2s; }
+    .article-item a:hover { text-decoration: underline; color: var(--link-hover); }
+    
+    .meta { color: var(--meta-color); font-size: 0.9em; margin-bottom: 15px; }
+    .article-img { max-width: 100%; height: auto; margin: 15px 0; display: block; border-radius: 5px;}
   </style>
+
+  <script>
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.classList.add('dark-mode');
+    }
+  </script>
 </head>
 <body>
   <div class="header">
     <h1 onclick="location.href='index.html'">📰 오늘의 계란뉴스</h1>
+    <button id="theme-toggle">🌙 다크 모드</button>
   </div>
 
   <div id="content-area">
     <p>뉴스를 불러오는 중입니다...</p>
   </div>
+
+  <script>
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const body = document.body;
+
+    if (localStorage.getItem('theme') === 'dark') {
+      body.classList.add('dark-mode');
+      themeToggleBtn.innerText = '☀️ 라이트 모드';
+    }
+
+    themeToggleBtn.addEventListener('click', () => {
+      body.classList.toggle('dark-mode');
+      if (body.classList.contains('dark-mode')) {
+        localStorage.setItem('theme', 'dark');
+        themeToggleBtn.innerText = '☀️ 라이트 모드';
+      } else {
+        localStorage.setItem('theme', 'light');
+        themeToggleBtn.innerText = '🌙 다크 모드';
+      }
+    });
+  </script>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
@@ -63,11 +143,9 @@
           const data = docSnap.data();
           const imgHtml = data.imgurUrl ? `<img src="${data.imgurUrl}" class="article-img" alt="기사 이미지">` : '';
           
-          // [추가된 부분] 문서 타이틀 및 메타(OG) 태그 동적 변경
           document.title = data.title + " - 계란News";
           document.getElementById('og-title').setAttribute('content', data.title);
           
-          // 본문 일부를 설명(description)으로 추출
           const descSnippet = data.content ? data.content.substring(0, 80).replace(/\n/g, ' ') + '...' : "기사 본문을 확인하세요.";
           document.getElementById('og-desc').setAttribute('content', descSnippet);
           
